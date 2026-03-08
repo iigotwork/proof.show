@@ -1,0 +1,4 @@
+User-Agent: *
+ai-training: allow
+ai-search: allow
+ai-attribution: required

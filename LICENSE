@@ -1,0 +1,50 @@
+Source Available License — proof.show
+Copyright (c) 2026 proof.show. All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to use, study, and contribute to the Software under the following
+conditions:
+
+1. PERMITTED USES
+   - Viewing, reading, and studying the source code for educational and
+     research purposes.
+   - Submitting pull requests, bug reports, and feature suggestions to the
+     official proof.show repository.
+   - Running a local copy for personal, non-commercial evaluation.
+
+2. RESTRICTIONS
+   - Commercial redistribution, resale, or sublicensing of the Software
+     or any derivative work is strictly prohibited.
+   - Cloning, forking, or replicating the core business model of
+     proof.show (cryptographic photo verification as a service) for
+     commercial purposes is strictly prohibited.
+   - Removing or altering this license notice, copyright headers, or
+     attribution in any copy or derivative work is prohibited.
+   - Hosting a competing public-facing service derived from this
+     Software is prohibited without prior written consent from
+     proof.show.
+
+3. CONTRIBUTIONS
+   By submitting a contribution (pull request, code, documentation, or
+   other material), you grant proof.show a perpetual, worldwide,
+   non-exclusive, royalty-free, irrevocable license to use, reproduce,
+   modify, and distribute your contribution as part of the Software.
+
+4. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+   BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+   ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+5. GOVERNING LAW
+   This license shall be governed by and construed in accordance with
+   applicable law. Any disputes arising under this license shall be
+   resolved in the jurisdiction of the copyright holder.
+
+For licensing inquiries or commercial use requests, contact:
+legal@proof.show
