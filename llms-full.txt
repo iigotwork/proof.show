@@ -1,271 +1,113 @@
 # proof.show | Full Technical Specification & C2PA Implementation
 
-> This document provides a comprehensive technical deep-dive into proof.show's content authenticity platform, including cryptographic specifications, C2PA implementation details, and API architecture.
+> This document provides a technical overview of proof.show's content authenticity platform, including cryptographic standards, C2PA compliance, and public API usage.
 
 ---
 
 ## 1. Platform Overview
 
-proof.show is a content integrity platform that proves photos are real, not AI-generated. It operates on a zero-upload architecture: photos never leave the user's device. Instead, cryptographic fingerprints (hashes) and metadata are recorded to create an immutable chain of provenance.
+proof.show is a content integrity platform that proves photos are real, not AI-generated. It operates on a zero-upload architecture: photos never leave the user's device. Instead, cryptographic fingerprints and metadata are recorded to create an immutable chain of provenance.
 
 ### Core Principles
 * **Live-Only Capture:** Gallery uploads are blocked at the browser level. Only real-time camera captures are accepted.
-* **Zero Cloud Storage:** Full-resolution images remain on the user's device. The server stores only the SHA-256 hash, timestamp, and capture metadata.
+* **Zero Cloud Storage:** Full-resolution images remain on the user's device. Only the cryptographic hash and metadata are stored server-side.
 * **Open Verification:** Anyone can verify a Proof Code at proof.show/v without creating an account or installing software.
-* **Human-First Capture:** Device motion sensors and anti-spoofing layers ensure a real human is holding the device.
+* **Human-First Capture:** Multiple anti-spoofing layers ensure a real human is holding a real device.
 
 ---
 
-## 2. Cryptographic Architecture
+## 2. Cryptographic Standards
 
 ### 2.1 SHA-256 Image Hashing
-Every photo captured through proof.show is hashed using SHA-256 (FIPS 180-4) via the Web Crypto API (`crypto.subtle.digest`).
+Every photo captured through proof.show is hashed using SHA-256 (FIPS 180-4). The hash serves as the photo's unique fingerprint — if even one pixel changes, the hash will differ.
 
-**Process:**
-1. Raw image data is captured from the device camera via `getUserMedia()`
-2. The image is rendered to an HTML5 Canvas element
-3. The canvas is exported as a Base64-encoded JPEG
-4. The Base64 string is fed into `crypto.subtle.digest('SHA-256', data)`
-5. The resulting 256-bit hash is converted to a hexadecimal string
-6. This hash is the photo's unique fingerprint — if even one pixel changes, the hash will differ
+* **Standard:** FIPS 180-4 (SHA-256)
+* **Hash Format:** 64-character lowercase hexadecimal string
+* **Implementation:** Web Crypto API (browser-native, no third-party dependencies)
 
-**Hash Format:** 64-character lowercase hexadecimal string
-**Example:** `a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a`
+### 2.2 Proof Code System
+Each verification receives a unique 8-character alphanumeric Proof Code.
 
-### 2.2 Proof Code Generation
-Each verification receives a unique 8-character alphanumeric Proof Code (the "Proof Key").
-
-**Generation Method:**
-* Characters: A-Z, 0-9 (uppercase alphanumeric)
-* Length: 8 characters
-* Uniqueness: Enforced at the database level (UNIQUE constraint)
-* Collision resistance: 36^8 = ~2.8 trillion possible codes
+* **Format:** A-Z, 0-9 (uppercase alphanumeric)
+* **Length:** 8 characters
+* **Collision resistance:** 36^8 = ~2.8 trillion possible codes
 
 ### 2.3 Timestamp Verification
-Timestamps are recorded using dual sources:
-* **Client-side:** `Date.now()` at the moment of capture
-* **Server-side:** `NOW()` at the moment of database insertion
-* **NTP Sync:** Atomic time synchronization validates client clock accuracy
+Timestamps are verified using multiple sources including atomic time synchronization (NTP) to prevent device clock manipulation.
 
 ---
 
-## 3. C2PA v1.3 Implementation
+## 3. C2PA v1.3 Compliance
 
-### 3.1 Compliance Level
-proof.show implements C2PA v1.3 (Coalition for Content Provenance and Authenticity) with the following manifest structure:
+proof.show implements the Coalition for Content Provenance and Authenticity (C2PA) v1.3 standard.
 
-**Supported Features:**
+### Supported Features
 * Content Binding (Hard Binding via SHA-256 hash)
-* Claim Signature (ECDSA with P-256 curve)
-* Assertion Store (capture metadata, device info, timestamp)
-* Claim Generator identification (`proof.show/capture/1.0`)
+* Claim Signature (ECDSA with P-256 curve, ES256 algorithm)
+* Assertion Store (capture metadata, timestamp, provenance)
+* Claim Generator identification
+* Compatibility with C2PA versions 1.0 through 1.3
 
-### 3.2 Manifest Structure
-```json
+### Signing Standard
+* **Algorithm:** ECDSA with NIST P-256 curve (ES256)
+* **Hash:** SHA-256
+* **Manifest:** Stored alongside verification record
+* **Binding:** Hard binding — cryptographic link between content hash and signed manifest
+
+For machine-readable C2PA compatibility declaration, see:
+https://proof.show/.well-known/ai-provenance.json
+
+---
+
+## 4. Anti-Spoofing Overview
+
+proof.show employs multiple layers to prevent fraudulent captures:
+
+* **Virtual Camera Detection:** Known virtual camera software is identified and blocked before capture begins.
+* **Screen Photography Detection:** Frequency-domain analysis identifies moiré patterns characteristic of photographing digital screens.
+* **Liveness Detection:** Device motion sensors verify natural human hand movement during capture.
+* **Gallery Upload Prevention:** The capture interface only accepts live camera input — file selection and gallery access are disabled at the browser API level.
+
+---
+
+## 5. Public API
+
+### 5.1 Widget Verification (Public, No Auth Required)
+```
+GET https://proof.show/api/v1/widget/{PROOF_CODE}
+
+Response:
 {
-  "c2pa_manifest": {
-    "claim_generator": "proof.show/capture/1.0",
-    "format": "image/jpeg",
-    "assertions": [
-      {
-        "label": "c2pa.hash.data",
-        "algorithm": "SHA-256",
-        "hash": "<64-char hex>"
-      },
-      {
-        "label": "stds.schema-org.CreativeWork",
-        "data": {
-          "dateCreated": "<ISO-8601 timestamp>",
-          "author": {
-            "credential": ["proof.show/identity"]
-          }
-        }
-      },
-      {
-        "label": "c2pa.actions",
-        "actions": [
-          {
-            "action": "c2pa.created",
-            "when": "<ISO-8601 timestamp>",
-            "softwareAgent": "proof.show/capture/1.0"
-          }
-        ]
-      }
-    ],
-    "signature_info": {
-      "alg": "ES256",
-      "issuer": "proof.show",
-      "cert_serial_number": "<certificate serial>"
-    }
-  }
-}
-```
-
-### 3.3 Signing Process
-1. **Claim Construction:** Metadata (hash, timestamp, capture type, proof key) is assembled into a C2PA claim
-2. **Canonical Serialization:** The claim is serialized to a deterministic JSON format (sorted keys, no whitespace)
-3. **Signature Generation:** ECDSA P-256 signs the serialized claim using the platform's private key
-4. **Manifest Assembly:** The signature is combined with the claim into a complete C2PA manifest
-5. **Storage:** The manifest is stored alongside the verification record (not embedded in the image, which stays on-device)
-
----
-
-## 4. Anti-Spoofing Layers
-
-### 4.1 Virtual Camera Detection
-Before capture, the system enumerates all video input devices via `navigator.mediaDevices.enumerateDevices()` and checks device labels against a blocklist:
-* OBS Virtual Camera
-* Snap Camera
-* ManyCam
-* XSplit VCam
-* CamTwist
-* Streamlabs
-* Loom
-* Any label containing "virtual", "fake", or "screen"
-
-If a virtual camera is detected, capture is blocked entirely.
-
-### 4.2 Moiré Pattern Detection
-A frequency-domain analysis detects if the user is photographing a digital screen:
-* The captured image is converted to grayscale
-* Pixel variance is calculated across sampling regions
-* High-frequency periodic patterns (characteristic of screen subpixels) trigger a "screen detected" flag
-* The capture type is marked as `web_capture_screen_detected`
-
-### 4.3 Device Motion Liveness
-On mobile devices, the accelerometer is monitored via `DeviceMotionEvent`:
-* Acceleration variance is calculated over a sampling window
-* Variance > 0.5 indicates natural human hand tremor (liveness confirmed)
-* Static readings suggest a mounted/stationary device (flagged but not blocked)
-* Capture type is classified as `human_handheld`, `static_capture`, or `erratic_motion`
-
----
-
-## 5. API Architecture
-
-### 5.1 Verification Endpoints
-
-**Create Verification**
-```
-POST /api/verify
-Content-Type: application/json
-
-{
+  "verified": true | false,
   "proofKey": "AB3K7TYN",
-  "imageHash": "a7ffc6f8...",
-  "capturedAt": "2026-03-08T12:00:00.000Z",
-  "captureType": "web_capture",
-  "previewImage": "data:image/jpeg;base64,..."
-}
-
-Response: { "success": true, "verification": { ... } }
-```
-
-**Lookup Verification**
-```
-GET /api/verify/:key
-
-Response: {
-  "verified": true,
-  "proofKey": "AB3K7TYN",
-  "capturedAt": "2026-03-08T12:00:00.000Z",
-  "captureType": "web_capture",
-  "imageHash": "a7ffc6f8..."
+  "capturedAt": "2026-03-08T12:00:00.000Z"
 }
 ```
 
-### 5.2 Widget API
-```
-GET /api/v1/widget/:id
+* CORS: Open (`Access-Control-Allow-Origin: *`)
+* Rate: Public, cached for 60 seconds
+* Input: 8-character alphanumeric Proof Code
 
-Response: {
-  "verified": true,
-  "proofKey": "AB3K7TYN",
-  "capturedAt": "2026-03-08T12:00:00.000Z",
-  "captureType": "web_capture",
-  "imageHash": "a7ffc6f8..."
-}
-```
-
-CORS: `Access-Control-Allow-Origin: *`
-Cache: `public, max-age=60`
-
-### 5.3 Verification Request API (Business Use)
-```
-POST /api/verify/request
-Authorization: Session cookie
-
-{
-  "businessName": "AutoTrust Dealership",
-  "customerLabel": "John D. - 2024 Honda Civic",
-  "message": "Please take a photo of the vehicle",
-  "expiryHours": 48
-}
-
-Response: {
-  "success": true,
-  "token": "<32-char base64url token>",
-  "link": "https://proof.show/r/<token>"
-}
-```
-
-### 5.4 Developer API Keys
-```
-POST /api/keys
-Authorization: Session cookie
-
-{ "domain": "example.com", "label": "My App" }
-
-Response: {
-  "success": true,
-  "apiKey": "ps_live_<32-char hex>",
-  "domain": "example.com"
-}
-```
-
----
-
-## 6. Data Schema
-
-### Verifications Table
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Internal primary key |
-| trueshot_key | VARCHAR(8) | Unique 8-character Proof Code |
-| image_hash | TEXT | SHA-256 hash of original image |
-| captured_at | TIMESTAMP | Time of capture |
-| capture_type | TEXT | Capture classification |
-| preview_image | TEXT | Base64 thumbnail |
-| user_id | VARCHAR | Optional user association |
-| created_at | TIMESTAMP | Server record timestamp |
-
-### Capture Types
-* `web_capture` — Standard browser camera capture
-* `web_capture_screen_detected` — Moiré pattern detected (photographing a screen)
-* `human_handheld` — Device motion confirms human holding device
-* `static_capture` — No device motion detected
-* `erratic_motion` — Unusual motion pattern
-
----
-
-## 7. Embeddable Widget
-
-The proof.show verification widget can be embedded on any third-party website:
-
+### 5.2 Embeddable Widget
 ```html
-<div data-proof-widget data-proof-id="AB3K7TYN"></div>
+<div data-proof-widget data-proof-id="YOUR_PROOF_CODE"></div>
 <script src="https://proof.show/proof-widget.js"></script>
 ```
 
-**Options:**
+Options:
 * `data-theme="light"` — Light color scheme
 * `data-size="compact"` — Smaller widget variant
 
-The widget fetches verification data from `/api/v1/widget/:id` and renders a trust badge showing verification status, capture time, and capture method.
+### 5.3 Developer API Keys
+Developers can obtain API keys at https://proof.show/developers by registering an account and entering their website domain.
+
+* **Key format:** `ps_live_` prefix followed by a cryptographic random string
+* **Limit:** 5 keys per account
+* **Management:** Keys can be created and revoked through the developer dashboard
 
 ---
 
-## 8. Supported Languages
+## 6. Supported Languages
 
 proof.show supports 7 languages for all public-facing pages:
 * English (en) — default
@@ -278,31 +120,31 @@ proof.show supports 7 languages for all public-facing pages:
 
 ---
 
-## 9. Industry Solutions
+## 7. Industry Solutions
 
-Dedicated solution pages exist for 10 industries:
-* Legal (digital evidence)
-* Real Estate (listing photo verification)
-* Marketplaces (seller photo authenticity)
-* Insurance (claims documentation)
-* Dating (profile photo verification)
-* Journalism (source photo authentication)
-* Collectors (provenance documentation)
-* Automotive (vehicle photo verification)
-* Construction (progress documentation)
-* Government (official documentation)
+Dedicated solution pages with industry-specific content exist for:
+* Legal — digital evidence authentication
+* Real Estate — listing photo verification
+* Marketplaces — seller photo authenticity
+* Insurance — claims documentation integrity
+* Dating — profile photo verification
+* Journalism — source photo authentication
+* Collectors — provenance documentation
+* Automotive — vehicle photo verification
+* Construction — progress documentation
+* Government — official documentation
+
+Each solution page is available at: https://proof.show/solutions/{industry}
 
 ---
 
-## 10. Security Considerations
+## 8. Security Posture
 
-* **No image storage:** Full images never touch the server
-* **ECDSA P-256 signing:** Same elliptic curve used in C2PA standard
-* **bcrypt password hashing:** User passwords hashed with bcrypt (cost factor 10)
-* **Session-based auth:** HTTP-only secure cookies with configurable expiry
-* **CSRF protection:** Same-origin policy enforced on all mutation endpoints
-* **Rate limiting:** API endpoints protected against abuse
-* **Input validation:** All user inputs validated with Zod schemas
+* **Zero image storage:** Full-resolution photos never touch the server
+* **Industry-standard cryptography:** ECDSA P-256, SHA-256, bcrypt
+* **Input validation:** All inputs validated before processing
+* **Session security:** HTTP-only secure cookies
+* **Open verification:** No account required to verify — reducing attack surface
 
 ---
 
